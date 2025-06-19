@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Better Accounting</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  </head>
+  <body class="bg-gray-100 h-screen overflow-hidden font-sans">
+    <div class="h-full flex flex-col items-center justify-start min-h-screen">
+      <nav class="w-full max-w-3xl mx-auto flex justify-center mb-10">
+        <div class="flex space-x-12 text-xl text-center w-full justify-center">
+          <a href="#" class="text-gray-800 border-b-2 border-blue-600 pb-1"
+            >Home</a
+          >
+          <a
+            href="#"
+            class="text-gray-600 hover:text-blue-600 border-b-2 border-transparent hover:border-blue-400 pb-1 transition"
+            >Categorization</a
+          >
+          <a
+            href="#"
+            class="text-gray-600 hover:text-blue-600 border-b-2 border-transparent hover:border-blue-400 pb-1 transition"
+            >Export</a
+          >
+        </div>
+      </nav>
+      <main
+        class="w-full max-w-3xl mx-auto flex flex-col items-center justify-center flex-1"
+      >
+        <div
+          class="flex flex-col sm:flex-row sm:space-x-8 mb-8 w-full justify-center items-stretch"
+        >
+          <section
+            class="bg-white rounded-lg shadow p-6 flex-1 w-full sm:w-1/2 mb-4 sm:mb-0"
+          >
+            <label class="block font-semibold mb-2" for="excel-upload"
+              >Upload Current Accounting File (Excel):</label
+            >
+            <input
+              type="file"
+              id="excel-upload"
+              accept=".xlsx,.xls"
+              class="block w-full p-2 border border-gray-300 rounded mb-2"
+            />
+          </section>
+          <section
+            class="bg-white rounded-lg shadow p-6 flex-1 w-full sm:w-1/2"
+          >
+            <label class="block font-semibold mb-2" for="csv-upload"
+              >Upload Transactions (CSV):</label
+            >
+            <input
+              type="file"
+              id="csv-upload"
+              accept=".csv"
+              class="block w-full p-2 border border-gray-300 rounded mb-2"
+            />
+          </section>
+        </div>
+        <div
+          class="flex flex-col sm:flex-row sm:space-x-8 mb-8 w-full justify-center items-stretch"
+        >
+          <section
+            id="data-preview"
+            class="mb-4 border-t border-gray-200 pt-4 w-full"
+          >
+            <!-- Data preview will be rendered here -->
+          </section>
+          <section
+            id="categorization-ui"
+            class="mb-4 border-t border-gray-200 pt-4 w-full"
+          >
+            <!-- Categorization UI will be rendered here -->
+          </section>
+        </div>
+      </main>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
