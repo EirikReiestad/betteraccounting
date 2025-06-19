@@ -14,6 +14,73 @@ let csvData = null
 let diffData = []
 let mergedData = []
 
+// Inferred accounting columns from screenshot
+const ACCOUNTING_COLUMNS = [
+    'BOKFØRINGSDATO',
+    'AVSENDER',
+    'MOTTAKER',
+    'TYPE',
+    'TEKST',
+    'UT FRA KONTO',
+    'INN PÅ KONTO',
+    'BELØP',
+    'ÅR',
+    'MÅNED',
+    'DAG',
+];
+
+// Map a CSV transaction to the accounting format
+function mapTransactionToAccounting(tx) {
+    // This mapping may need to be adjusted based on your real CSV structure
+    return {
+        'BOKFØRINGSDATO': tx['Bokføringsdato'] || tx['BOKFØRINGSDATO'] || '',
+        'AVSENDER': tx['Avsender'] || tx['AVSENDER'] || '',
+        'MOTTAKER': tx['Mottaker'] || tx['MOTTAKER'] || '',
+        'TYPE': tx['Tittel'] || tx['TYPE'] || '',
+        'TEKST': tx['Navn'] || tx['TEKST'] || '',
+        'UT FRA KONTO': tx['Beløp'] && Number(tx['Beløp']) < 0 ? tx['Beløp'] : '',
+        'INN PÅ KONTO': tx['Beløp'] && Number(tx['Beløp']) > 0 ? tx['Beløp'] : '',
+        'BELØP': tx['Beløp'] || '',
+        'ÅR': tx['Bokføringsdato'] && tx['Bokføringsdato'].split('/')[0] || '',
+        'MÅNED': tx['Bokføringsdato'] && tx['Bokføringsdato'].split('/')[1] || '',
+        'DAG': tx['Bokføringsdato'] && tx['Bokføringsdato'].split('/')[2] || '',
+    };
+}
+
+// Find diffs between accounting and new transactions
+function diffTransactions(accountingRows, newRows) {
+    // Map all new transactions to accounting format
+    const mappedNew = newRows.map(mapTransactionToAccounting);
+    // Helper to compare all fields except date
+    function isAlmostSimilar(a, b) {
+        return ACCOUNTING_COLUMNS.filter(c => c !== 'BOKFØRINGSDATO').every(col => (a[col] || '') === (b[col] || ''));
+    }
+    // Helper to compare all fields
+    function isExact(a, b) {
+        return ACCOUNTING_COLUMNS.every(col => (a[col] || '') === (b[col] || ''));
+    }
+    // Find exact duplicates
+    const exactMatches = [];
+    const almostMatches = [];
+    const newOnes = [];
+    mappedNew.forEach(newTx => {
+        const exact = accountingRows.find(acc => isExact(acc, newTx));
+        if (exact) {
+            exactMatches.push({ old: exact, new: newTx });
+            return;
+        }
+        // If not exact, check for almost similar (date is 'Reservert' or differs)
+        const almost = accountingRows.find(acc => isAlmostSimilar(acc, newTx) && (acc['BOKFØRINGSDATO'] === 'Reservert' || newTx['BOKFØRINGSDATO'] === 'Reservert' || acc['BOKFØRINGSDATO'] !== newTx['BOKFØRINGSDATO']));
+        if (almost) {
+            almostMatches.push({ old: almost, new: newTx });
+            return;
+        }
+        // Otherwise, it's a new transaction
+        newOnes.push(newTx);
+    });
+    return { exactMatches, almostMatches, newOnes };
+}
+
 // Navbar routing logic
 navHome.addEventListener('click', (e) => {
     e.preventDefault()
@@ -224,7 +291,104 @@ function renderTable(data) {
 }
 
 function renderReviewTable() {
-    reviewView.innerHTML =
-        '<div class="mb-4 font-bold">Review Changes (Excel-like Table Coming Soon)</div>'
-    // Will render the color-coded, editable table here in the next step
+    // Render the Excel-like table with old transactions and review diffs
+    const headers = ACCOUNTING_COLUMNS;
+    let html = `
+      <div class="w-full max-w-6xl mx-auto p-2">
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left border border-gray-200 bg-white">
+            <thead>
+              <tr>
+                ${headers.map((h) => `<th class="border px-2 py-1 bg-gray-100">${h}</th>`).join('')}
+                <th class="border px-2 py-1 bg-gray-100">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+    if (!excelData) {
+        html += Array.from({ length: 12 })
+            .map(() => `<tr>${headers.map(() => '<td class="border px-2 py-1 h-8">&nbsp;</td>').join('')}<td class="border px-2 py-1 h-8">&nbsp;</td></tr>`)
+            .join('');
+    } else {
+        // Compute diffs
+        const diffs = diffTransactions(excelData, csvData || []);
+        // Render all old transactions (not almost/exact matches)
+        const oldRowsToShow = excelData.filter(old => {
+            // Don't show if it's an exact match with a new
+            if (diffs.exactMatches.some(m => m.old === old)) return false;
+            // Don't show if it's an almost match (will be shown as red row)
+            if (diffs.almostMatches.some(m => m.old === old)) return false;
+            return true;
+        });
+        oldRowsToShow.forEach(row => {
+            html += `<tr>${headers.map(h => `<td class="border px-2 py-1 h-8" contenteditable="true">${row[h] ?? ''}</td>`).join('')}<td class="border px-2 py-1 h-8"></td></tr>`;
+        });
+        // Render almost similar matches (old in red, new in green)
+        diffs.almostMatches.forEach((pair, idx) => {
+            // Old (red)
+            html += `<tr class="bg-red-100">${headers.map(h => `<td class="border px-2 py-1 h-8" contenteditable="true">${pair.old[h] ?? ''}</td>`).join('')}<td class="border px-2 py-1 h-8 text-center align-middle">Old</td></tr>`;
+            // New (green) with Approve/Decline
+            html += `<tr class="bg-green-100">${headers.map(h => `<td class="border px-2 py-1 h-8" contenteditable="true">${pair.new[h] ?? ''}</td>`).join('')}<td class="border px-2 py-1 h-8 text-center align-middle"><button class='approve-btn bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded mr-2' data-type='almost' data-idx='${idx}'>Approve</button><button class='decline-btn bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded' data-type='almost' data-idx='${idx}'>Decline</button></td></tr>`;
+        });
+        // Render new transactions (green)
+        diffs.newOnes.forEach((row, idx) => {
+            html += `<tr class="bg-green-100">${headers.map(h => `<td class="border px-2 py-1 h-8" contenteditable="true">${row[h] ?? ''}</td>`).join('')}<td class="border px-2 py-1 h-8 text-center align-middle"><button class='approve-btn bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded mr-2' data-type='new' data-idx='${idx}'>Approve</button><button class='decline-btn bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded' data-type='new' data-idx='${idx}'>Decline</button></td></tr>`;
+        });
+    }
+    html += `</tbody></table></div></div>`;
+    reviewView.innerHTML = html;
+
+    // Add event listeners for Approve/Decline buttons
+    const diffs = excelData ? diffTransactions(excelData, csvData || []) : null;
+    if (diffs) {
+        // Approve/Decline for almost similar
+        reviewView.querySelectorAll('.approve-btn[data-type="almost"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(btn.getAttribute('data-idx'));
+                // Approve: replace old with new in excelData
+                const pair = diffs.almostMatches[idx];
+                const oldIdx = excelData.findIndex(row => row === pair.old);
+                if (oldIdx !== -1) excelData[oldIdx] = pair.new;
+                // Remove from csvData
+                const csvIdx = csvData.findIndex(tx => mapTransactionToAccounting(tx)['BOKFØRINGSDATO'] === pair.new['BOKFØRINGSDATO'] && mapTransactionToAccounting(tx)['BELØP'] === pair.new['BELØP']);
+                if (csvIdx !== -1) csvData.splice(csvIdx, 1);
+                renderReviewTable();
+            });
+        });
+        reviewView.querySelectorAll('.decline-btn[data-type="almost"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(btn.getAttribute('data-idx'));
+                // Decline: do nothing, just remove from csvData
+                const pair = diffs.almostMatches[idx];
+                const csvIdx = csvData.findIndex(tx => mapTransactionToAccounting(tx)['BOKFØRINGSDATO'] === pair.new['BOKFØRINGSDATO'] && mapTransactionToAccounting(tx)['BELØP'] === pair.new['BELØP']);
+                if (csvIdx !== -1) csvData.splice(csvIdx, 1);
+                renderReviewTable();
+            });
+        });
+        // Approve/Decline for new
+        reviewView.querySelectorAll('.approve-btn[data-type="new"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(btn.getAttribute('data-idx'));
+                // Approve: add to excelData
+                const diffsNow = diffTransactions(excelData, csvData || []);
+                const row = diffsNow.newOnes[idx];
+                excelData.push(row);
+                // Remove from csvData
+                const csvIdx = csvData.findIndex(tx => mapTransactionToAccounting(tx)['BOKFØRINGSDATO'] === row['BOKFØRINGSDATO'] && mapTransactionToAccounting(tx)['BELØP'] === row['BELØP']);
+                if (csvIdx !== -1) csvData.splice(csvIdx, 1);
+                renderReviewTable();
+            });
+        });
+        reviewView.querySelectorAll('.decline-btn[data-type="new"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(btn.getAttribute('data-idx'));
+                // Decline: just remove from csvData
+                const diffsNow = diffTransactions(excelData, csvData || []);
+                const row = diffsNow.newOnes[idx];
+                const csvIdx = csvData.findIndex(tx => mapTransactionToAccounting(tx)['BOKFØRINGSDATO'] === row['BOKFØRINGSDATO'] && mapTransactionToAccounting(tx)['BELØP'] === row['BELØP']);
+                if (csvIdx !== -1) csvData.splice(csvIdx, 1);
+                renderReviewTable();
+            });
+        });
+    }
 }
