@@ -14,6 +14,7 @@ let csvData = null
 let diffData = []
 let mergedData = []
 let reviewRows = []
+let userEdits = new Map() // Store user edits: key = row identifier, value = { column: value }
 
 const EDITABLE_COLUMNS = ['Type', 'Kategori', 'Merker']
 
@@ -276,11 +277,11 @@ navReview.addEventListener('click', (e) => {
     renderReviewTable()
 })
 
-// Auto-load test files on page load
-window.addEventListener('DOMContentLoaded', async () => {
-    inputView.classList.add('max-w-5xl', 'mx-auto');
-    await loadTestFiles()
-})
+// For testing: To auto-load mock files, uncomment the block below.
+// window.addEventListener('DOMContentLoaded', async () => {
+//     inputView.classList.add('max-w-5xl', 'mx-auto');
+//     await loadTestFiles()
+// })
 
 async function loadTestFiles() {
     // Load Excel
@@ -502,9 +503,16 @@ function setupTableCellEditing() {
                 return
             }
 
-            const dataRow = reviewRows[rowIndex].row
-            dataRow[header] = validation.value
-
+            // Store the edit in userEdits Map
+            const rowData = reviewRows[rowIndex].row
+            const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
+            
+            if (!userEdits.has(rowKey)) {
+                userEdits.set(rowKey, {})
+            }
+            userEdits.get(rowKey)[header] = validation.value
+            
+            // Re-render the table to show the edits
             const container = document.getElementById('review-table-container')
             const currentScroll = container ? container.scrollTop : 0
             renderReviewTable(currentScroll)
@@ -518,8 +526,9 @@ function renderReviewTable(scrollPosition = 0) {
     const headers = ACCOUNTING_COLUMNS
     let html = `
       <div class="w-full p-4">
-        <div class="flex justify-end mb-2">
+        <div class="flex justify-end mb-2 space-x-2">
           <button id="download-merged-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed">Download Merged File</button>
+          <button id="accept-all-btn" class="bg-green-600 text-white font-semibold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed">Accept All</button>
         </div>
         <div id="review-table-container" class="overflow-x-auto overflow-y-auto max-h-[70vh]">
           <table class="w-full text-xs text-left border border-gray-200 bg-white">
@@ -542,6 +551,10 @@ function renderReviewTable(scrollPosition = 0) {
         // Compute diffs
         const diffs = diffTransactions(excelData, csvData || [])
 
+        // Apply predictions to new and almost-new items
+        findAndApplyPredictions(diffs.newOnes)
+        findAndApplyPredictions(diffs.almostMatches.map((p) => p.new))
+
         // Find uncategorized old rows and apply predictions
         const oldRows = excelData.filter(
             (old) =>
@@ -552,10 +565,6 @@ function renderReviewTable(scrollPosition = 0) {
             oldRows,
             predictionIgnoredRows
         )
-
-        // Apply predictions to new and almost-new items
-        findAndApplyPredictions(diffs.newOnes)
-        findAndApplyPredictions(diffs.almostMatches.map((p) => p.new))
 
         // Prepare all rows to render
         let localRowsToRender = []
@@ -580,6 +589,15 @@ function renderReviewTable(scrollPosition = 0) {
 
         // Sort rows: non-review first, then by date
         reviewRows = sortReviewRows(localRowsToRender)
+
+        // Apply user edits to the rows
+        reviewRows.forEach(({ type, row, idx }) => {
+            const rowKey = `${row['Bokføringsdato']}_${row['Beløp']}_${row['Avsender']}_${row['Mottaker']}`
+            const edits = userEdits.get(rowKey)
+            if (edits) {
+                Object.assign(row, edits)
+            }
+        })
 
         // Render rows
         reviewRows.forEach(({ type, row, idx }, rowIndex) => {
@@ -640,33 +658,88 @@ function renderReviewTable(scrollPosition = 0) {
 
     // Enable/disable download button
     const downloadBtn = document.getElementById('download-merged-btn')
+    const acceptAllBtn = document.getElementById('accept-all-btn')
     const hasUnreviewed = !!reviewView.querySelector(
         '.approve-btn, .decline-btn'
     )
     downloadBtn.disabled = hasUnreviewed
+    acceptAllBtn.disabled = !hasUnreviewed
     downloadBtn.onclick = function () {
         if (downloadBtn.disabled) return
-        // Download excelData as xlsx, ensure numbers are numbers
-        const exportData = excelData.map((row) => {
-            const out = { ...row }
-            for (const col of ACCOUNTING_COLUMNS) {
-                if (
-                    isNumberCol(col) &&
-                    out[col] !== '' &&
-                    out[col] !== null &&
-                    out[col] !== undefined
-                ) {
-                    out[col] = Number(out[col])
+        let exportData = []
+        if (excelData && excelData.length > 0) {
+            exportData = excelData.map((row) => {
+                const out = { ...row }
+                for (const col of ACCOUNTING_COLUMNS) {
+                    if (
+                        isNumberCol(col) &&
+                        out[col] !== '' &&
+                        out[col] !== null &&
+                        out[col] !== undefined
+                    ) {
+                        out[col] = Number(out[col])
+                    }
                 }
-            }
-            return out
-        })
+                return out
+            })
+        } else {
+            // No Excel file loaded: generate a blank template row
+            exportData = [] // No rows, just headers
+        }
         const ws = XLSX.utils.json_to_sheet(exportData, {
             header: ACCOUNTING_COLUMNS,
         })
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, 'Merged')
-        XLSX.writeFile(wb, 'merged_accounting.xlsx')
+        // Generate filename with current date
+        const today = new Date()
+        const yyyy = today.getFullYear()
+        const mm = String(today.getMonth() + 1).padStart(2, '0')
+        const dd = String(today.getDate()).padStart(2, '0')
+        const filename = `betteraccounting_${yyyy}-${mm}-${dd}.xlsx`
+        XLSX.writeFile(wb, filename)
+    }
+
+    // Accept All logic
+    acceptAllBtn.onclick = function () {
+        const diffs = diffTransactions(excelData, csvData || [])
+        // Approve all new transactions
+        for (const row of diffs.newOnes) {
+            excelData.push({ ...row })
+            // Remove from csvData
+            const csvIdx = csvData.findIndex(
+                (tx) =>
+                    mapTransactionToAccounting(tx)['Bokføringsdato'] === row['Bokføringsdato'] &&
+                    mapTransactionToAccounting(tx)['Beløp'] === row['Beløp']
+            )
+            if (csvIdx !== -1) csvData.splice(csvIdx, 1)
+            // Remove user edits for this row
+            const rowKey = `${row['Bokføringsdato']}_${row['Beløp']}_${row['Avsender']}_${row['Mottaker']}`
+            userEdits.delete(rowKey)
+            // Apply predictions to this new row
+            findAndApplyPredictions([row])
+        }
+        // Approve all almost-new transactions
+        for (const pair of diffs.almostMatches) {
+            // Replace the old transaction with the new one
+            const oldIdx = excelData.findIndex((row) => row === pair.old)
+            if (oldIdx !== -1) {
+                excelData[oldIdx] = { ...pair.new }
+                // Apply predictions to this new row
+                findAndApplyPredictions([excelData[oldIdx]])
+            }
+            // Remove from csvData
+            const csvIdx = csvData.findIndex(
+                (tx) =>
+                    mapTransactionToAccounting(tx)['Bokføringsdato'] === pair.new['Bokføringsdato'] &&
+                    mapTransactionToAccounting(tx)['Beløp'] === pair.new['Beløp']
+            )
+            if (csvIdx !== -1) csvData.splice(csvIdx, 1)
+            // Remove user edits for this row
+            const rowKey = `${pair.new['Bokføringsdato']}_${pair.new['Beløp']}_${pair.new['Avsender']}_${pair.new['Mottaker']}`
+            userEdits.delete(rowKey)
+        }
+        renderReviewTable()
     }
 
     // Add event listeners for Approve/Decline buttons (same as before)
@@ -679,17 +752,34 @@ function renderReviewTable(scrollPosition = 0) {
                     const container = document.getElementById('review-table-container');
                     const currentScroll = container ? container.scrollTop : 0;
                     const idx = parseInt(btn.getAttribute('data-idx'))
+                    
+                    // Get the row data directly from reviewRows (which contains user edits)
+                    const tr = btn.closest('tr')
+                    const rowIndex = parseInt(tr.dataset.rowIndex, 10)
+                    const rowData = reviewRows[rowIndex].row
+                    
+                    // Find the original pair to get the old transaction
                     const pair = diffs.almostMatches[idx]
                     const oldIdx = excelData.findIndex(
                         (row) => row === pair.old
                     )
-                    if (oldIdx !== -1) excelData[oldIdx] = pair.new
+                    
+                    // Replace the old transaction with the edited new transaction
+                    if (oldIdx !== -1) {
+                        excelData[oldIdx] = { ...rowData }
+                    }
+                    
+                    // Clear user edits for this row
+                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
+                    userEdits.delete(rowKey)
+                    
+                    // Remove from CSV data
                     const csvIdx = csvData.findIndex(
                         (tx) =>
                             mapTransactionToAccounting(tx)['Bokføringsdato'] ===
-                                pair.new['Bokføringsdato'] &&
+                                rowData['Bokføringsdato'] &&
                             mapTransactionToAccounting(tx)['Beløp'] ===
-                                pair.new['Beløp']
+                                rowData['Beløp']
                     )
                     if (csvIdx !== -1) csvData.splice(csvIdx, 1)
                     renderReviewTable(currentScroll)
@@ -721,15 +811,26 @@ function renderReviewTable(scrollPosition = 0) {
                     const container = document.getElementById('review-table-container');
                     const currentScroll = container ? container.scrollTop : 0;
                     const idx = parseInt(btn.getAttribute('data-idx'))
-                    const diffsNow = diffTransactions(excelData, csvData || [])
-                    const row = diffsNow.newOnes[idx]
-                    excelData.push(row)
+                    
+                    // Get the row data directly from reviewRows (which contains user edits)
+                    const tr = btn.closest('tr')
+                    const rowIndex = parseInt(tr.dataset.rowIndex, 10)
+                    const rowData = reviewRows[rowIndex].row
+                    
+                    // Add the edited transaction to excelData
+                    excelData.push({ ...rowData })
+                    
+                    // Clear user edits for this row
+                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
+                    userEdits.delete(rowKey)
+                    
+                    // Remove from CSV data
                     const csvIdx = csvData.findIndex(
                         (tx) =>
                             mapTransactionToAccounting(tx)['Bokføringsdato'] ===
-                                row['Bokføringsdato'] &&
+                                rowData['Bokføringsdato'] &&
                             mapTransactionToAccounting(tx)['Beløp'] ===
-                                row['Beløp']
+                                rowData['Beløp']
                     )
                     if (csvIdx !== -1) csvData.splice(csvIdx, 1)
                     renderReviewTable(currentScroll)
@@ -759,8 +860,18 @@ function renderReviewTable(scrollPosition = 0) {
             .querySelectorAll('.approve-btn[data-type="predicted"]')
             .forEach((btn) => {
                 btn.addEventListener('click', (e) => {
-                    // Approving simply accepts the current data.
-                    // The row will be re-rendered as a normal 'old' row next time.
+                    // Get the row data directly from reviewRows (which contains user edits)
+                    const tr = btn.closest('tr')
+                    const rowIndex = parseInt(tr.dataset.rowIndex, 10)
+                    const rowData = reviewRows[rowIndex].row
+                    
+                    // The row data already contains user edits from setupTableCellEditing
+                    // No additional processing needed - just approve the current state
+                    
+                    // Clear user edits for this row
+                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`                    
+                    userEdits.delete(rowKey)
+                    
                     const container =
                         document.getElementById('review-table-container')
                     const currentScroll = container ? container.scrollTop : 0
@@ -794,7 +905,6 @@ function trainClassifiers() {
     categoryClassifier = new NaiveBayesClassifier()
     tagsClassifier = new NaiveBayesClassifier()
 
-    console.log('Training classifiers on existing data...')
     excelData.forEach((row) => {
         const text = `${row['Avsender']} ${row['Mottaker']} ${row['Tekst']}`
         if (row['Kategori']) {
@@ -807,14 +917,11 @@ function trainClassifiers() {
                 .split(/[,;]/)
                 .map((t) => t.trim())
                 .filter(Boolean)
-            console.log(`Training on tags for "${text}":`, tags)
             tags.forEach((tag) => {
                 tagsClassifier.train(text, tag)
             })
         }
     })
-    console.log('Training complete. Category count:', Object.keys(categoryClassifier.categoryCounts).length)
-    console.log('Tag count:', Object.keys(tagsClassifier.categoryCounts).length)
 }
 
 function findAndApplyPredictions(rows, ignoreSet = new Set()) {
@@ -855,3 +962,4 @@ function findAndApplyPredictions(rows, ignoreSet = new Set()) {
     })
     return modifiedRows
 }
+
