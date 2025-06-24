@@ -261,6 +261,9 @@ navHome.addEventListener('click', (e) => {
     e.preventDefault()
     inputView.style.display = ''
     reviewView.style.display = 'none'
+    // Restore width constraints for home view
+    const mainContainer = document.getElementById('main-container')
+    mainContainer.classList.add('max-w-7xl', 'mx-auto')
     navHome.classList.add('text-gray-800', 'border-blue-600')
     navHome.classList.remove('text-gray-600', 'border-transparent')
     navReview.classList.remove('text-gray-800', 'border-blue-600')
@@ -270,6 +273,9 @@ navReview.addEventListener('click', (e) => {
     e.preventDefault()
     inputView.style.display = 'none'
     reviewView.style.display = ''
+    // Remove width constraints for review view
+    const mainContainer = document.getElementById('main-container')
+    mainContainer.classList.remove('max-w-7xl', 'mx-auto')
     navReview.classList.add('text-gray-800', 'border-blue-600')
     navReview.classList.remove('text-gray-600', 'border-transparent')
     navHome.classList.remove('text-gray-800', 'border-blue-600')
@@ -279,7 +285,9 @@ navReview.addEventListener('click', (e) => {
 
 // For testing: To auto-load mock files, uncomment the block below.
 // window.addEventListener('DOMContentLoaded', async () => {
-//     inputView.classList.add('max-w-5xl', 'mx-auto');
+//     // Initialize home view with width constraints
+//     const mainContainer = document.getElementById('main-container')
+//     mainContainer.classList.add('max-w-7xl', 'mx-auto')
 //     await loadTestFiles()
 // })
 
@@ -525,7 +533,7 @@ function renderReviewTable(scrollPosition = 0) {
     reviewRows = []
     const headers = ACCOUNTING_COLUMNS
     let html = `
-      <div class="w-full p-4">
+      <div class="w-full px-4 py-4">
         <div class="flex justify-end mb-2 space-x-2">
           <button id="download-merged-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed">Download Merged File</button>
           <button id="accept-all-btn" class="bg-green-600 text-white font-semibold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed">Accept All</button>
