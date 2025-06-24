@@ -285,7 +285,7 @@ navReview.addEventListener('click', (e) => {
 
 async function loadTestFiles() {
     // Load Excel
-    const excelResp = await fetch('test_accounting.xlsx')
+    const excelResp = await fetch('sample_betteraccounting.xlsx')
     const excelArrayBuffer = await excelResp.arrayBuffer()
     const workbook = XLSX.read(excelArrayBuffer)
     const sheetName = workbook.SheetNames[0]
@@ -294,7 +294,7 @@ async function loadTestFiles() {
     })
 
     // Load CSV
-    const csvResp = await fetch('test_transactions.csv')
+    const csvResp = await fetch('sample_transactions.csv')
     const csvText = await csvResp.text()
     Papa.parse(csvText, {
         header: true,
@@ -401,14 +401,14 @@ function renderPreview() {
         html +=
             '<section class="rounded-lg shadow p-6 flex-1 w-full sm:w-1/2 mb-4 sm:mb-0">' +
             '<label class="block font-semibold mb-2">Current Accounting File Preview:</label>' +
-            renderTable(excelData.slice(0, 5)) +
+            renderTable(excelData) +
             '</section>'
     }
     if (csvData) {
         html +=
             '<section class="rounded-lg shadow p-6 flex-1 w-full sm:w-1/2 mb-4 sm:mb-0">' +
             '<label class="block font-semibold mb-2">Transactions Preview:</label>' +
-            renderTable(csvData.slice(0, 5)) +
+            renderTable(csvData) +
             '</section>'
         ;('</div>')
     }
@@ -420,7 +420,7 @@ function renderTable(data) {
         return '<div class="text-gray-400">No data</div>'
     const headers = Object.keys(data[0])
     let html =
-        '<div class="overflow-x-auto"><table class="min-w-full text-xs text-left border border-gray-200"><thead><tr>'
+        '<div class="overflow-x-auto overflow-y-auto max-h-96"><table class="min-w-full text-xs text-left border border-gray-200"><thead><tr>'
     headers.forEach(
         (h) => (html += `<th class="border px-2 py-1 bg-gray-100">${h}</th>`)
     )
@@ -534,8 +534,8 @@ function renderReviewTable(scrollPosition = 0) {
           <table class="w-full text-xs text-left border border-gray-200 bg-white">
             <thead>
               <tr>
-                ${headers.map((h) => `<th class="sticky top-0 z-10 border px-2 py-1 bg-gray-100">${h}</th>`).join('')}
-                <th class="sticky top-0 z-10 border px-2 py-1 bg-gray-100">Actions</th>
+                ${headers.map((h) => `<th class="sticky top-0 z-10 border px-2 py-1 bg-blue-50">${h}</th>`).join('')}
+                <th class="sticky top-0 z-10 border px-2 py-1 bg-blue-50">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -615,7 +615,8 @@ function renderReviewTable(scrollPosition = 0) {
                     isNumberCol(h) &&
                     val !== '' &&
                     val !== null &&
-                    val !== undefined
+                    val !== undefined &&
+                    !isNaN(Number(val))
                 ) {
                     val = Number(val)
                 }
