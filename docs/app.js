@@ -52,11 +52,7 @@ class NaiveBayesClassifier {
 
     predict(
         text,
-        {
-            confidenceLevel = 2.0,
-            multi = false,
-            relativeThreshold = 2.0,
-        } = {}
+        { confidenceLevel = 2.0, multi = false, relativeThreshold = 2.0 } = {}
     ) {
         const tokens = this.tokenize(text)
         const scores = {}
@@ -91,7 +87,7 @@ class NaiveBayesClassifier {
         })
 
         if (sortedScores.length === 0) {
-            return multi ? [] : null
+            return []
         }
 
         if (sortedScores.length === 1) {
@@ -105,12 +101,12 @@ class NaiveBayesClassifier {
         const confidenceThreshold = Math.log(confidenceLevel)
         if (best[1] < secondBest[1] + confidenceThreshold) {
             // Not confident in our top pick, so don't suggest anything.
-            return multi ? [] : null
+            return []
         }
 
         // If we're here, we are confident in our best pick.
         if (!multi) {
-            return best[0]
+            return [best[0]]
         }
 
         // For multi-predictions, find all other predictions that are relatively close to the best one.
@@ -163,9 +159,9 @@ const NORWEGIAN_MONTHS = [
 ]
 
 function formatHeader(header) {
-    if (!header) return '';
-    const str = header.replace(/_/g, ' ').toLowerCase();
-    return str.charAt(0).toUpperCase() + str.slice(1);
+    if (!header) return ''
+    const str = header.replace(/_/g, ' ').toLowerCase()
+    return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
 function getNorwegianMonthAbbr(monthNum) {
@@ -185,11 +181,11 @@ function mapTransactionToAccounting(tx) {
     }
 
     const isOutgoing = tx['Beløp'] && Number(tx['Beløp']) < 0
-    
-    let avsender = tx['Avsender'] || '';
-    let mottaker = tx['Mottaker'] || '';
-    let tekst = tx['Tittel'] || '';
-    let beløp = tx['Beløp'] || '';
+
+    let avsender = tx['Avsender'] || ''
+    let mottaker = tx['Mottaker'] || ''
+    let tekst = tx['Tittel'] || ''
+    let beløp = tx['Beløp'] || ''
 
     return {
         Bokføringsdato: tx['Bokføringsdato'] || tx['Bokføringsdato'] || '',
@@ -284,21 +280,37 @@ navReview.addEventListener('click', (e) => {
 })
 
 // For testing: To auto-load mock files, uncomment the block below.
-// window.addEventListener('DOMContentLoaded', async () => {
-//     // Initialize home view with width constraints
-//     const mainContainer = document.getElementById('main-container')
-//     mainContainer.classList.add('max-w-7xl', 'mx-auto')
-//     await loadTestFiles()
-// })
+window.addEventListener('DOMContentLoaded', async () => {
+    // Initialize home view with width constraints
+    const mainContainer = document.getElementById('main-container')
+    mainContainer.classList.add('max-w-7xl', 'mx-auto')
+    await loadTestFiles()
+})
 
 async function loadTestFiles() {
     // Load Excel
     const excelResp = await fetch('sample_betteraccounting.xlsx')
+    if (!excelResp.ok) {
+        throw new Error('Failed to load Excel file: ' + excelResp.statusText)
+    }
     const excelArrayBuffer = await excelResp.arrayBuffer()
     const workbook = XLSX.read(excelArrayBuffer)
     const sheetName = workbook.SheetNames[0]
     excelData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
         defval: '',
+    })
+    excelData.forEach((row) => {
+        if (typeof row['Bokføringsdato'] === 'number') {
+            const baseDate = new Date(1900, 0, 0)
+            const date = new Date(
+                baseDate.getTime() +
+                    (row['Bokføringsdato'] - 1) * 24 * 60 * 60 * 1000
+            )
+            const yyyy = date.getFullYear()
+            const mm = String(date.getMonth() + 1).padStart(2, '0')
+            const dd = String(date.getDate()).padStart(2, '0')
+            row['Bokføringsdato'] = `${yyyy}/${mm}/${dd}`
+        }
     })
 
     // Load CSV
@@ -386,6 +398,19 @@ excelInput.addEventListener('change', async (e) => {
     excelData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
         defval: '',
     })
+    excelData.forEach((row) => {
+        if (typeof row['Bokføringsdato'] === 'number') {
+            const baseDate = new Date(1900, 0, 0)
+            const date = new Date(
+                baseDate.getTime() +
+                    (row['Bokføringsdato'] - 1) * 24 * 60 * 60 * 1000
+            )
+            const yyyy = date.getFullYear()
+            const mm = String(date.getMonth() + 1).padStart(2, '0')
+            const dd = String(date.getDate()).padStart(2, '0')
+            row['Bokføringsdato'] = `${yyyy}/${mm}/${dd}`
+        }
+    })
     renderPreview()
 })
 
@@ -446,6 +471,9 @@ function renderTable(data) {
 
 function parseDate(dateStr) {
     if (!dateStr || dateStr === 'Reservert') return null
+    if (!(typeof dateStr === 'string') && !(dateStr instanceof String)) {
+        console.log(`date is not String but type ${typeof dateStr}: ${dateStr}`)
+    }
     // Accepts YYYY/MM/DD or similar
     const parts = dateStr.split(/[\/-]/)
     if (parts.length !== 3) return null
@@ -486,46 +514,50 @@ function validateCell(header, value) {
 }
 
 function setupTableCellEditing() {
-    reviewView.querySelectorAll('td[contenteditable="true"]').forEach((cell) => {
-        cell.addEventListener('focus', (e) => {
-            e.target.dataset.originalValue = e.target.textContent.trim()
+    reviewView
+        .querySelectorAll('td[contenteditable="true"]')
+        .forEach((cell) => {
+            cell.addEventListener('focus', (e) => {
+                e.target.dataset.originalValue = e.target.textContent.trim()
+            })
+
+            cell.addEventListener('blur', (e) => {
+                const td = e.target
+                const tr = td.closest('tr')
+                if (!tr) return
+
+                const rowIndex = parseInt(tr.dataset.rowIndex, 10)
+                const header = td.dataset.header
+                const newValue = td.textContent.trim()
+                const oldValue = td.dataset.originalValue
+
+                if (newValue === oldValue) return // No change
+
+                const validation = validateCell(header, newValue)
+
+                if (!validation.isValid) {
+                    alert(`Invalid value "${newValue}" for ${header}.`)
+                    td.textContent = oldValue
+                    return
+                }
+
+                // Store the edit in userEdits Map
+                const rowData = reviewRows[rowIndex].row
+                const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
+
+                if (!userEdits.has(rowKey)) {
+                    userEdits.set(rowKey, {})
+                }
+                userEdits.get(rowKey)[header] = validation.value
+
+                // Re-render the table to show the edits
+                const container = document.getElementById(
+                    'review-table-container'
+                )
+                const currentScroll = container ? container.scrollTop : 0
+                renderReviewTable(currentScroll)
+            })
         })
-
-        cell.addEventListener('blur', (e) => {
-            const td = e.target
-            const tr = td.closest('tr')
-            if (!tr) return
-
-            const rowIndex = parseInt(tr.dataset.rowIndex, 10)
-            const header = td.dataset.header
-            const newValue = td.textContent.trim()
-            const oldValue = td.dataset.originalValue
-
-            if (newValue === oldValue) return // No change
-
-            const validation = validateCell(header, newValue)
-
-            if (!validation.isValid) {
-                alert(`Invalid value "${newValue}" for ${header}.`)
-                td.textContent = oldValue
-                return
-            }
-
-            // Store the edit in userEdits Map
-            const rowData = reviewRows[rowIndex].row
-            const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
-            
-            if (!userEdits.has(rowKey)) {
-                userEdits.set(rowKey, {})
-            }
-            userEdits.get(rowKey)[header] = validation.value
-            
-            // Re-render the table to show the edits
-            const container = document.getElementById('review-table-container')
-            const currentScroll = container ? container.scrollTop : 0
-            renderReviewTable(currentScroll)
-        })
-    })
 }
 
 function renderReviewTable(scrollPosition = 0) {
@@ -629,7 +661,8 @@ function renderReviewTable(scrollPosition = 0) {
                     val = Number(val)
                 }
 
-                const tdClass = !isEditable && type === 'old' ? 'bg-gray-50' : ''
+                const tdClass =
+                    !isEditable && type === 'old' ? 'bg-gray-50' : ''
 
                 html += `<td class="border px-2 py-1 h-8 ${tdClass}" contenteditable="${isEditable}" data-header="${h}">${val}</td>`
             })
@@ -658,9 +691,9 @@ function renderReviewTable(scrollPosition = 0) {
     html += `</tbody></table></div></div>`
     reviewView.innerHTML = html
 
-    const container = document.getElementById('review-table-container');
+    const container = document.getElementById('review-table-container')
     if (container) {
-        container.scrollTop = scrollPosition;
+        container.scrollTop = scrollPosition
     }
 
     setupTableCellEditing()
@@ -718,7 +751,8 @@ function renderReviewTable(scrollPosition = 0) {
             // Remove from csvData
             const csvIdx = csvData.findIndex(
                 (tx) =>
-                    mapTransactionToAccounting(tx)['Bokføringsdato'] === row['Bokføringsdato'] &&
+                    mapTransactionToAccounting(tx)['Bokføringsdato'] ===
+                        row['Bokføringsdato'] &&
                     mapTransactionToAccounting(tx)['Beløp'] === row['Beløp']
             )
             if (csvIdx !== -1) csvData.splice(csvIdx, 1)
@@ -740,8 +774,10 @@ function renderReviewTable(scrollPosition = 0) {
             // Remove from csvData
             const csvIdx = csvData.findIndex(
                 (tx) =>
-                    mapTransactionToAccounting(tx)['Bokføringsdato'] === pair.new['Bokføringsdato'] &&
-                    mapTransactionToAccounting(tx)['Beløp'] === pair.new['Beløp']
+                    mapTransactionToAccounting(tx)['Bokføringsdato'] ===
+                        pair.new['Bokføringsdato'] &&
+                    mapTransactionToAccounting(tx)['Beløp'] ===
+                        pair.new['Beløp']
             )
             if (csvIdx !== -1) csvData.splice(csvIdx, 1)
             // Remove user edits for this row
@@ -758,30 +794,32 @@ function renderReviewTable(scrollPosition = 0) {
             .querySelectorAll('.approve-btn[data-type="almost"]')
             .forEach((btn) => {
                 btn.addEventListener('click', (e) => {
-                    const container = document.getElementById('review-table-container');
-                    const currentScroll = container ? container.scrollTop : 0;
+                    const container = document.getElementById(
+                        'review-table-container'
+                    )
+                    const currentScroll = container ? container.scrollTop : 0
                     const idx = parseInt(btn.getAttribute('data-idx'))
-                    
+
                     // Get the row data directly from reviewRows (which contains user edits)
                     const tr = btn.closest('tr')
                     const rowIndex = parseInt(tr.dataset.rowIndex, 10)
                     const rowData = reviewRows[rowIndex].row
-                    
+
                     // Find the original pair to get the old transaction
                     const pair = diffs.almostMatches[idx]
                     const oldIdx = excelData.findIndex(
                         (row) => row === pair.old
                     )
-                    
+
                     // Replace the old transaction with the edited new transaction
                     if (oldIdx !== -1) {
                         excelData[oldIdx] = { ...rowData }
                     }
-                    
+
                     // Clear user edits for this row
                     const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
                     userEdits.delete(rowKey)
-                    
+
                     // Remove from CSV data
                     const csvIdx = csvData.findIndex(
                         (tx) =>
@@ -798,8 +836,10 @@ function renderReviewTable(scrollPosition = 0) {
             .querySelectorAll('.decline-btn[data-type="almost"]')
             .forEach((btn) => {
                 btn.addEventListener('click', (e) => {
-                    const container = document.getElementById('review-table-container');
-                    const currentScroll = container ? container.scrollTop : 0;
+                    const container = document.getElementById(
+                        'review-table-container'
+                    )
+                    const currentScroll = container ? container.scrollTop : 0
                     const idx = parseInt(btn.getAttribute('data-idx'))
                     const pair = diffs.almostMatches[idx]
                     const csvIdx = csvData.findIndex(
@@ -817,22 +857,24 @@ function renderReviewTable(scrollPosition = 0) {
             .querySelectorAll('.approve-btn[data-type="new"]')
             .forEach((btn) => {
                 btn.addEventListener('click', (e) => {
-                    const container = document.getElementById('review-table-container');
-                    const currentScroll = container ? container.scrollTop : 0;
+                    const container = document.getElementById(
+                        'review-table-container'
+                    )
+                    const currentScroll = container ? container.scrollTop : 0
                     const idx = parseInt(btn.getAttribute('data-idx'))
-                    
+
                     // Get the row data directly from reviewRows (which contains user edits)
                     const tr = btn.closest('tr')
                     const rowIndex = parseInt(tr.dataset.rowIndex, 10)
                     const rowData = reviewRows[rowIndex].row
-                    
+
                     // Add the edited transaction to excelData
                     excelData.push({ ...rowData })
-                    
+
                     // Clear user edits for this row
                     const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
                     userEdits.delete(rowKey)
-                    
+
                     // Remove from CSV data
                     const csvIdx = csvData.findIndex(
                         (tx) =>
@@ -849,8 +891,10 @@ function renderReviewTable(scrollPosition = 0) {
             .querySelectorAll('.decline-btn[data-type="new"]')
             .forEach((btn) => {
                 btn.addEventListener('click', (e) => {
-                    const container = document.getElementById('review-table-container');
-                    const currentScroll = container ? container.scrollTop : 0;
+                    const container = document.getElementById(
+                        'review-table-container'
+                    )
+                    const currentScroll = container ? container.scrollTop : 0
                     const idx = parseInt(btn.getAttribute('data-idx'))
                     const diffsNow = diffTransactions(excelData, csvData || [])
                     const row = diffsNow.newOnes[idx]
@@ -873,16 +917,17 @@ function renderReviewTable(scrollPosition = 0) {
                     const tr = btn.closest('tr')
                     const rowIndex = parseInt(tr.dataset.rowIndex, 10)
                     const rowData = reviewRows[rowIndex].row
-                    
+
                     // The row data already contains user edits from setupTableCellEditing
                     // No additional processing needed - just approve the current state
-                    
+
                     // Clear user edits for this row
-                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`                    
+                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
                     userEdits.delete(rowKey)
-                    
-                    const container =
-                        document.getElementById('review-table-container')
+
+                    const container = document.getElementById(
+                        'review-table-container'
+                    )
                     const currentScroll = container ? container.scrollTop : 0
                     renderReviewTable(currentScroll)
                 })
@@ -891,8 +936,9 @@ function renderReviewTable(scrollPosition = 0) {
             .querySelectorAll('.decline-btn[data-type="predicted"]')
             .forEach((btn) => {
                 btn.addEventListener('click', (e) => {
-                    const container =
-                        document.getElementById('review-table-container')
+                    const container = document.getElementById(
+                        'review-table-container'
+                    )
                     const currentScroll = container ? container.scrollTop : 0
                     const tr = btn.closest('tr')
                     const rowIndex = parseInt(tr.dataset.rowIndex, 10)
@@ -955,10 +1001,11 @@ function findAndApplyPredictions(rows, ignoreSet = new Set()) {
 
         if (row['Kategori'] && !row['Merker']) {
             const tagPredictions = tagsClassifier.predict(text, {
-                confidenceLevel: 2.5,
-                multi: true,
-                relativeThreshold: 5.0,
+                confidenceLevel: 10,
+                multi: false,
+                relativeThreshold: 10.0,
             })
+            console.log(tagPredictions)
             if (tagPredictions && tagPredictions.length > 0) {
                 row['Merker'] = tagPredictions.join(', ')
                 modified = true
@@ -971,4 +1018,3 @@ function findAndApplyPredictions(rows, ignoreSet = new Set()) {
     })
     return modifiedRows
 }
-
