@@ -1,5 +1,5 @@
 const EDITABLE_COLUMNS = ['Type', 'Kategori', 'Merker']
-const LOADTESTFILES = true
+const LOADTESTFILES = false
 
 // Inferred accounting columns from screenshot
 const ACCOUNTING_COLUMNS = [
@@ -10,6 +10,7 @@ const ACCOUNTING_COLUMNS = [
     'Tekst',
     'Ut fra konto',
     'Inn på konto',
+    'Gruppe',
     'Beløp',
     'År',
     'Måned',

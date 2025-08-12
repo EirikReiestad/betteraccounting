@@ -105,14 +105,16 @@ function trainClassifiers() {
     if (!excelData) return
     categoryClassifier = new NaiveBayesClassifier()
     tagsClassifier = new NaiveBayesClassifier()
+    gruppeClassifier = new NaiveBayesClassifier()
 
     excelData.forEach((row) => {
-        const text = `${row['Avsender']} ${row['Mottaker']} ${row['Tekst']}`
+        let text = `${row['Avsender']} ${row['Mottaker']} ${row['Type']} ${row['Tekst']} ${row['Beløp']}`
         if (row['Kategori']) {
             categoryClassifier.train(text, row['Kategori'])
         }
         if (row['Merker']) {
             // Split tags by comma and train on each individual tag
+            text = text + `${row['Kategori']}`
             const tags = row['Merker']
                 .toString()
                 .split(/[,;]/)
@@ -121,6 +123,9 @@ function trainClassifiers() {
             tags.forEach((tag) => {
                 tagsClassifier.train(text, tag)
             })
+        }
+        if (row['Gruppe']) {
+            gruppeClassifier.train(text, row['Gruppe'])
         }
     })
 }
@@ -153,6 +158,16 @@ function findAndApplyPredictions(rows, ignoreSet = new Set()) {
             })
             if (tagPredictions && tagPredictions.length > 0) {
                 row['Merker'] = tagPredictions.join(', ')
+                modified = true
+            }
+        }
+
+        if (!row['Gruppe']) {
+            const gruppePrediction = gruppeClassifier.predict(text, {
+                confidenceLevel: 4.0,
+            })
+            if (gruppePrediction) {
+                row['Gruppe'] = gruppePrediction[0]
                 modified = true
             }
         }
