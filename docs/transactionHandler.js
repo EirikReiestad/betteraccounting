@@ -32,6 +32,7 @@ function mapTransactionToAccounting(tx) {
         Tekst: tekst,
         'Ut fra konto': isOutgoing ? -beløp : '',
         'Inn på konto': !isOutgoing && beløp ? beløp : '',
+        Gruppe: '',
         Beløp: beløp,
         År:
             Number(
