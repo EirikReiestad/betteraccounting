@@ -28,18 +28,19 @@ const COMPARE_ACCOUNTING_COLUMNS = [
     'Beløp',
 ]
 
+// Må ha engelsk måned likevell :( pga excel pivot tabell, ellers skrive om kode til å ha norsk talltegn
 const NORWEGIAN_MONTHS = [
     '',
     'Jan',
     'Feb',
     'Mar',
     'Apr',
-    'Mai',
+    'May',
     'Jun',
     'Jul',
     'Aug',
     'Sep',
-    'Okt',
+    'Oct',
     'Nov',
     'Des',
 ]
