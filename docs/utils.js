@@ -15,8 +15,7 @@ function isSameTransaction(a, b) {
     return (
         a.bokføringsdato === b.bokføringsdato &&
         a.beløp === b.beløp &&
-        a.avsender === b.avsender &&
-        a.mottaker === b.mottaker
+        a.konto === b.konto
     )
 }
 
@@ -54,16 +53,6 @@ function sortReviewRows(rows) {
         if (!db) return -1
         return da - db
     })
-}
-
-function validateCell(header, value) {
-    const trimmedValue = value.trim()
-    if (EDITABLE_COLUMNS.includes(header)) {
-        // For now, all editable columns accept any string value.
-        return { isValid: true, value: trimmedValue }
-    }
-    // This should not be called for non-editable columns, but as a safeguard:
-    return { isValid: false }
 }
 
 async function loadTestFiles() {

@@ -177,7 +177,7 @@ function renderReviewTable(scrollPosition = 0) {
 
         // Apply user edits to the rows
         reviewRows.forEach(({ type, row, idx }) => {
-            const rowKey = `${row['Bokføringsdato']}_${row['Beløp']}_${row['Avsender']}_${row['Mottaker']}`
+            const rowKey = `${row['Bokføringsdato']}_${row['Beløp']}_${row['Konto']}`
             const edits = userEdits.get(rowKey)
             if (edits) {
                 Object.assign(row, edits)
@@ -299,48 +299,6 @@ function renderReviewTable(scrollPosition = 0) {
         // const diffs = diffTransactions(excelData, csvData || [])
         excelData = allExcelData
         // Approve all new transactions
-        /*
-        for (const row of diffs.newOnes) {
-            excelData.push({ ...row })
-            // Remove from csvData
-            const csvIdx = csvData.findIndex(
-                (tx) =>
-                    mapTransactionToAccounting(tx)['Bokføringsdato'] ===
-                        row['Bokføringsdato'] &&
-                    mapTransactionToAccounting(tx)['Beløp'] === row['Beløp']
-            )
-            if (csvIdx !== -1) csvData.splice(csvIdx, 1)
-            // Remove user edits for this row
-            const rowKey = `${row['Bokføringsdato']}_${row['Beløp']}_${row['Avsender']}_${row['Mottaker']}`
-            userEdits.delete(rowKey)
-            // Apply predictions to this new row
-            // findAndApplyPredictions([row])
-        }
-        */
-        /*
-        // Approve all almost-new transactions
-        for (const pair of diffs.almostMatches) {
-            // Replace the old transaction with the new one
-            const oldIdx = excelData.findIndex((row) => row === pair.old)
-            if (oldIdx !== -1) {
-                excelData[oldIdx] = { ...pair.new }
-                // Apply predictions to this new row
-                // findAndApplyPredictions([excelData[oldIdx]])
-            }
-            // Remove from csvData
-            const csvIdx = csvData.findIndex(
-                (tx) =>
-                    mapTransactionToAccounting(tx)['Bokføringsdato'] ===
-                        pair.new['Bokføringsdato'] &&
-                    mapTransactionToAccounting(tx)['Beløp'] ===
-                        pair.new['Beløp']
-            )
-            if (csvIdx !== -1) csvData.splice(csvIdx, 1)
-            // Remove user edits for this row
-            const rowKey = `${pair.new['Bokføringsdato']}_${pair.new['Beløp']}_${pair.new['Avsender']}_${pair.new['Mottaker']}`
-            userEdits.delete(rowKey)
-        }
-        */
         renderReviewTable()
     }
 
@@ -374,7 +332,7 @@ function renderReviewTable(scrollPosition = 0) {
                     }
 
                     // Clear user edits for this row
-                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
+                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Konto']}`
                     userEdits.delete(rowKey)
 
                     // Remove from CSV data
@@ -429,7 +387,7 @@ function renderReviewTable(scrollPosition = 0) {
                     excelData.push({ ...rowData })
 
                     // Clear user edits for this row
-                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
+                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Konto']}`
                     userEdits.delete(rowKey)
 
                     // Remove from CSV data
@@ -486,7 +444,7 @@ function renderReviewTable(scrollPosition = 0) {
                     // No additional processing needed - just approve the current state
 
                     // Clear user edits for this row
-                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
+                    const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Konto']}`
                     userEdits.delete(rowKey)
 
                     const container = document.getElementById(

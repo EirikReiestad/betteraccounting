@@ -19,15 +19,13 @@ function mapTransactionToAccounting(tx) {
 
     const isOutgoing = beløp < 0
 
-    let avsender = tx['Avsender'] || ''
-    let mottaker = tx['Mottaker'] || ''
+    let konto = tx['Avsender'] || tx['Mottaker']
     let tekst = tx['Tittel'] || ''
     beløp = beløp || ''
 
     return {
         Bokføringsdato: tx['Bokføringsdato'] || tx['Bokføringsdato'] || '',
-        Avsender: avsender,
-        Mottaker: mottaker,
+        Konto: konto,
         Type: tx['Betalingstype'] || '',
         Tekst: tekst,
         'Ut fra konto': isOutgoing ? -beløp : '',

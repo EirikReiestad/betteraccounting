@@ -4,8 +4,7 @@ const LOADTESTFILES = false
 // Inferred accounting columns from screenshot
 const ACCOUNTING_COLUMNS = [
     'Bokføringsdato',
-    'Avsender',
-    'Mottaker',
+    'Konto',
     'Type',
     'Tekst',
     'Ut fra konto',
@@ -21,8 +20,7 @@ const ACCOUNTING_COLUMNS = [
 
 const COMPARE_ACCOUNTING_COLUMNS = [
     'Bokføringsdato',
-    'Avsender',
-    'Mottaker',
+    'Konto',
     'Type',
     'Tekst',
     'Ut fra konto',

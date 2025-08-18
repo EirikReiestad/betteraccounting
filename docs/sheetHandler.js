@@ -28,7 +28,7 @@ function setupTableCellEditing() {
 
                 // Store the edit in userEdits Map
                 const rowData = reviewRows[rowIndex].row
-                const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Avsender']}_${rowData['Mottaker']}`
+                const rowKey = `${rowData['Bokføringsdato']}_${rowData['Beløp']}_${rowData['Konto']}`
 
                 if (!userEdits.has(rowKey)) {
                     userEdits.set(rowKey, {})

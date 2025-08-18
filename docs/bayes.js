@@ -108,7 +108,7 @@ function trainClassifiers() {
     gruppeClassifier = new NaiveBayesClassifier()
 
     excelData.forEach((row) => {
-        let text = `${row['Avsender']} ${row['Mottaker']} ${row['Type']} ${row['Tekst']} ${row['Beløp']}`
+        let text = `${row['Konto']} ${row['Type']} ${row['Tekst']} ${row['Beløp']}`
         if (row['Kategori']) {
             categoryClassifier.train(text, row['Kategori'])
         }
@@ -137,7 +137,7 @@ function findAndApplyPredictions(rows, ignoreSet = new Set()) {
     rows.forEach((row) => {
         if (ignoreSet.has(row)) return
 
-        const text = `${row['Avsender']} ${row['Mottaker']} ${row['Tekst']}`
+        const text = `${row['Konto']} ${row['Tekst']}`
         let modified = false
 
         if (!row['Kategori']) {
