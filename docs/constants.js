@@ -42,5 +42,5 @@ const NORWEGIAN_MONTHS = [
     'Sep',
     'Oct',
     'Nov',
-    'Des',
+    'Dec',
 ]
